@@ -245,6 +245,12 @@ class HamsterIndicator(HamsterApplet):
             self.set_activity_text(self.last_activity['name'],
                                  stuff.format_duration(duration, False))
         else:
+            #self.prev_activity_item.set_label("hello")
+            # it could be done nicer I think
+            facts = self.storage.get_todays_facts()
+            if facts and facts[-1]["end_time"] != None:
+                self.prev_activity_item.set_label(facts[-1]["name"])
+
             self.stop_activity_item.set_sensitive(0)
             label = "%s" % _(u"New activity")#_(u"No activity")
             self.set_activity_text(label, None)

@@ -1,3 +1,2 @@
-There is an extra item added to the menu which is intended to be the previous item.
-Currently, that part does not work but it adds the current item to the indicator 
-which is a nice side-effect
+Changes:
+* There is an extra item added to the menu which should be the previous item.

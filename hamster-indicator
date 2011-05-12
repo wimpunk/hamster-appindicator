@@ -41,7 +41,7 @@ import locale
 
 from hamster.configuration import conf, runtime, dialogs
 
-from hamster import stuff
+from hamster import stuff, client
 
 # controllers for other windows
 from hamster import widgets
@@ -84,6 +84,7 @@ class HamsterIndicator(HamsterApplet):
     def __init__(self, applet=None):
         # Create a fake applet since HamsterApplet requires one
         applet = FakeApplet()
+        self.storage = client.Storage()
         
         self.indicator = appindicator.Indicator ("hamster-applet",
                                   "hamster-applet",#"file-manager",
@@ -105,6 +106,12 @@ class HamsterIndicator(HamsterApplet):
 
         # show the items
         self.activity_item.show()
+
+        # adding a previous version
+        self.prev_activity_item = gtk.MenuItem("Fixing Hamster")
+        self.menu.append(self.prev_activity_item)
+        self.prev_activity_item.connect("activate", self.on_prev_activity_activated, None)
+        self.prev_activity_item.show()
 
         self.stop_activity_item = gtk.MenuItem(_(u"Sto_p Tracking"))
         self.menu.append(self.stop_activity_item)
@@ -171,6 +178,10 @@ class HamsterIndicator(HamsterApplet):
 
     def on_new_activity_activated(self, *args):
         self.show_dialog()
+
+    def on_prev_activity_activated(self, *args):
+        self.storage.add_fact(self.prev_activity_item.get_label(), None, None)
+
 
     def on_stop_activity_activated(self, *args):
         runtime.storage.stop_tracking()
@@ -305,3 +316,7 @@ if __name__ == "__main__":
 
 
     gtk.main()
+
+
+# vim: ai ts=4 sw=4 tw=78 expandtab :
+

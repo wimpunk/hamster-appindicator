@@ -91,7 +91,7 @@ class HamsterIndicator(HamsterApplet):
     #                              appindicator.CATEGORY_APPLICATION_STATUS)
         self.indicator.set_status (appindicator.STATUS_ACTIVE)
     #    ind.set_attention_icon ("indicator-messages-new")
-
+    #    self.indicator.set_label('test','test');
         self.activity, self.duration = None, None
         
         self.menu = gtk.Menu()
@@ -143,7 +143,7 @@ class HamsterIndicator(HamsterApplet):
         self.quit_item = gtk.MenuItem(_(u"_Quit"))
         self.menu.append(self.quit_item)
         # this is where you would connect your menu item up with a function:
-        self.quit_item.connect("activate", gtk.main_quit, None)
+        self.quit_item.connect("activate", self.on_quit, None)
         # show the items
         self.quit_item.show()
 
@@ -176,6 +176,10 @@ class HamsterIndicator(HamsterApplet):
         runtime.storage.stop_tracking()
         self.last_activity = None
 
+    def on_quit(self, *args):
+        self.on_stop_activity_activated(None)
+        gtk.main_quit()
+
     def on_show_preferences_activated(self, *args):
         dialogs.prefs.show(self.indicator)
 
@@ -194,12 +198,21 @@ class HamsterIndicator(HamsterApplet):
         label = self.activity
         if self.duration:
             label = "%s %s" % (self.activity, self.duration)
+
+        # set raw label
+        if label == self.activity:        
+            self.indicator.set_icon("hamster-applet");
+            self.indicator.set_label('','');
+        else:        
+            self.indicator.set_icon("");
+            self.indicator.set_label(label,'00:00')
  
         label = '<span gravity="south">%s</span>' % label
         
         if self.activity_label:
             self.activity_label.set_markup("") #clear - seems to fix the warning
             self.activity_label.set_markup(label)
+
 
     def on_label_style_set(self, widget, something):
         self.reformat_label()

@@ -188,7 +188,7 @@ class HamsterIndicator(HamsterApplet):
         self.last_activity = None
 
     def on_quit(self, *args):
-        self.on_stop_activity_activated(None)
+        #self.on_stop_activity_activated(None)
         gtk.main_quit()
 
     def on_show_preferences_activated(self, *args):
@@ -206,6 +206,7 @@ class HamsterIndicator(HamsterApplet):
 
     def reformat_label(self):
         '''This adds a method which belongs to hamster.applet.PanelButton'''
+        print 'reformat_label'
         label = self.activity
         if self.duration:
             label = "%s %s" % (self.activity, self.duration)
@@ -245,12 +246,6 @@ class HamsterIndicator(HamsterApplet):
             self.set_activity_text(self.last_activity['name'],
                                  stuff.format_duration(duration, False))
         else:
-            #self.prev_activity_item.set_label("hello")
-            # it could be done nicer I think
-            facts = self.storage.get_todays_facts()
-            if facts and facts[-1]["end_time"] != None:
-                self.prev_activity_item.set_label(facts[-1]["name"])
-
             self.stop_activity_item.set_sensitive(0)
             label = "%s" % _(u"New activity")#_(u"No activity")
             self.set_activity_text(label, None)
@@ -281,11 +276,23 @@ class HamsterIndicator(HamsterApplet):
         self.stop_activity_item.set_sensitive(1)
         super(HamsterIndicator, self).on_switch_activity_clicked(widget)
 
+    def update_prev(self):
+        # it could be done nicer I think
+        print "update_prev"
+        facts = self.storage.get_todays_facts()
+        if facts and facts[-2]["end_time"] != None:
+            self.prev_activity_item.set_label(facts[-2]["name"])
+            print "set label to {}".format(facts[-2]["name"])
+
     def set_activity_text(self, activity, duration):
         '''This adds a method which belongs to hamster.applet.PanelButton'''
+        print 'set_activity_text'
         activity = stuff.escape_pango(activity)
         if len(activity) > 25:  #ellipsize at some random length
             activity = "%s%s" % (activity[:25], "&#8230;")
+
+        if self.activity != activity:
+            self.update_prev()
 
         self.activity = activity
         self.duration = duration

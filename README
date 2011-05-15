@@ -2,5 +2,5 @@ Changes:
 * There is an extra item added to the menu which should be the previous item.
 
 Issues:
-* IndexError: list index out of range - when starting a new day.
+
 

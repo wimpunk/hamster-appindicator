@@ -280,7 +280,7 @@ class HamsterIndicator(HamsterApplet):
         # it could be done nicer I think
         print "update_prev"
         facts = self.storage.get_todays_facts()
-        if facts and facts[-2]["end_time"] != None:
+        if facts and len(facts) > 1 and facts[-2]["end_time"] != None:
             self.prev_activity_item.set_label(facts[-2]["name"])
             print "set label to {}".format(facts[-2]["name"])
 

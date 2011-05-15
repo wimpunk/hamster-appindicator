@@ -108,10 +108,17 @@ class HamsterIndicator(HamsterApplet):
         self.activity_item.show()
 
         # adding a previous version
-        self.prev_activity_item = gtk.MenuItem("Fixing Hamster")
-        self.menu.append(self.prev_activity_item)
-        self.prev_activity_item.connect("activate", self.on_prev_activity_activated, None)
-        self.prev_activity_item.show()
+        # default actions will be used if no previous actions are
+        # found for today 
+        self.defaultaction = ["Fixing hamster", "coffee", "cookie"]
+        self.prev_activity_item = list()
+        for i in range(len(self.defaultaction)):
+            print 'Adding hamster {}'.format(i)
+            self.prev_activity_item.append(gtk.MenuItem(self.defaultaction[i]))
+            self.menu.append(self.prev_activity_item[i])
+            self.prev_activity_item[i].connect("activate",
+                            self.on_prev_activity_activated, i)
+            self.prev_activity_item[i].show()
 
         self.stop_activity_item = gtk.MenuItem(_(u"Sto_p Tracking"))
         self.menu.append(self.stop_activity_item)
@@ -180,8 +187,8 @@ class HamsterIndicator(HamsterApplet):
         self.show_dialog()
 
     def on_prev_activity_activated(self, *args):
-        self.storage.add_fact(self.prev_activity_item.get_label(), None, None)
-
+        pos = int(args[1])
+        self.storage.add_fact(self.prev_activity_item[pos].get_label(), None, None)
 
     def on_stop_activity_activated(self, *args):
         runtime.storage.stop_tracking()
@@ -281,8 +288,17 @@ class HamsterIndicator(HamsterApplet):
         print "update_prev"
         facts = self.storage.get_todays_facts()
         if facts and len(facts) > 1 and facts[-2]["end_time"] != None:
-            self.prev_activity_item.set_label(facts[-2]["name"])
-            print "set label to {}".format(facts[-2]["name"])
+            pos = -2
+            for item in self.prev_activity_item:
+                try:
+                    item.set_label(facts[pos]["name"])
+                    print "set label to {}".format(facts[pos]["name"])
+                    pos -= 1
+                except IndexError:         
+                    break
+
+            #self.prev_activity_item[1].set_label(facts[-2]["name"])
+            #print "set label to {}".format(facts[-2]["name"])
 
     def set_activity_text(self, activity, duration):
         '''This adds a method which belongs to hamster.applet.PanelButton'''

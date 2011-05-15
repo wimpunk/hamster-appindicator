@@ -39,6 +39,8 @@ pygtk.require("2.0")
 import dbus, dbus.service, dbus.mainloop.glib
 import locale
 
+import getopt,sys
+
 from hamster.configuration import conf, runtime, dialogs
 
 from hamster import stuff, client
@@ -51,17 +53,19 @@ from hamster.applet import HamsterApplet
 
 import pango
 
+logger = logging.getLogger("hamster-indicator")
+
 try:
     import wnck
 except:
-    logging.warning("Could not import wnck - workspace tracking will be disabled")
+    logger.warning("Could not import wnck - workspace tracking will be disabled")
     wnck = None
 
 try:
     import pynotify
     pynotify.init('Hamster Applet')
 except:
-    logging.warning("Could not import pynotify - notifications will be disabled")
+    logger.warning("Could not import pynotify - notifications will be disabled")
     pynotify = None
 
 
@@ -113,7 +117,7 @@ class HamsterIndicator(HamsterApplet):
         self.defaultaction = ["Fixing hamster", "coffee", "cookie"]
         self.prev_activity_item = list()
         for i in range(len(self.defaultaction)):
-            print 'Adding hamster {}'.format(i)
+            logger.debug("Adding hamster {}".format(i))
             self.prev_activity_item.append(gtk.MenuItem(self.defaultaction[i]))
             self.menu.append(self.prev_activity_item[i])
             self.prev_activity_item[i].connect("activate",
@@ -213,7 +217,7 @@ class HamsterIndicator(HamsterApplet):
 
     def reformat_label(self):
         '''This adds a method which belongs to hamster.applet.PanelButton'''
-        print 'reformat_label'
+        logger.debug('reformat_label')
         label = self.activity
         if self.duration:
             label = "%s %s" % (self.activity, self.duration)
@@ -285,24 +289,24 @@ class HamsterIndicator(HamsterApplet):
 
     def update_prev(self):
         # it could be done nicer I think
-        print "update_prev"
+        logger.debug("update_prev")
         facts = self.storage.get_todays_facts()
         if facts and len(facts) > 1 and facts[-2]["end_time"] != None:
             pos = -2
             for item in self.prev_activity_item:
                 try:
                     item.set_label(facts[pos]["name"])
-                    print "set label to {}".format(facts[pos]["name"])
+                    logger.debug("set label to {}".format(facts[pos]["name"]))
                     pos -= 1
                 except IndexError:         
                     break
 
             #self.prev_activity_item[1].set_label(facts[-2]["name"])
-            #print "set label to {}".format(facts[-2]["name"])
+            #debug "set label to {}".format(facts[-2]["name"])
 
     def set_activity_text(self, activity, duration):
         '''This adds a method which belongs to hamster.applet.PanelButton'''
-        print 'set_activity_text'
+        logging.debug('set_activity_text')
         activity = stuff.escape_pango(activity)
         if len(activity) > 25:  #ellipsize at some random length
             activity = "%s%s" % (activity[:25], "&#8230;")
@@ -332,9 +336,27 @@ class HamsterIndicator(HamsterApplet):
         gobject.idle_add(self._delayed_display)
 
 
+def usage():
+    print ("usage: ")
 
 if __name__ == "__main__":
 
+    try:
+        opts, extraparms = getopt.getopt(sys.argv[1:],'?hd',["help","debug"] )
+    except getopt.GetoptError as err: 
+        print(err)
+        usage()
+        sys.exit(2)
+
+    logger.setLevel(logging.WARNING)
+
+    for o,p in opts:
+        if o in ['-?', '-h','--help']:
+            do_help()
+            sys.exit(1)
+        elif o in ['-d', '--debug']:
+            logger.setLevel(logging.DEBUG)
+            print 'We will debug'
 
     from hamster import i18n
     i18n.setup_i18n()
@@ -342,7 +364,6 @@ if __name__ == "__main__":
     hamster_indicator = HamsterIndicator()
 
 #    ind.set_menu(hamster_indicator.menu)
-
 
     gtk.main()
 

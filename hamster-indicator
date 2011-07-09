@@ -44,10 +44,10 @@ import getopt,sys
 from hamster.configuration import conf, runtime, dialogs
 
 try:
-    from hamster import stuff, client
+    from hamster import stuff
     from hamster import i18n
 except ImportError:
-    from hamster.lib import stuff, client
+    from hamster.lib import stuff
     from hamster.lib import i18n
 
 # controllers for other windows

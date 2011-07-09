@@ -43,7 +43,12 @@ import getopt,sys
 
 from hamster.configuration import conf, runtime, dialogs
 
-from hamster import stuff, client
+try:
+    from hamster import stuff, client
+    from hamster import i18n
+except ImportError:
+    from hamster.lib import stuff, client
+    from hamster.lib import i18n
 
 # controllers for other windows
 from hamster import widgets
@@ -340,29 +345,8 @@ def usage():
     print ("usage: ")
 
 if __name__ == "__main__":
-
-    try:
-        opts, extraparms = getopt.getopt(sys.argv[1:],'?hd',["help","debug"] )
-    except getopt.GetoptError as err: 
-        print(err)
-        usage()
-        sys.exit(2)
-
-    logger.setLevel(logging.WARNING)
-
-    for o,p in opts:
-        if o in ['-?', '-h','--help']:
-            do_help()
-            sys.exit(1)
-        elif o in ['-d', '--debug']:
-            logger.setLevel(logging.DEBUG)
-            print 'We will debug'
-
-    from hamster import i18n
     i18n.setup_i18n()
-
     hamster_indicator = HamsterIndicator()
-
 #    ind.set_menu(hamster_indicator.menu)
 
     gtk.main()

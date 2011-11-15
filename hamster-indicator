@@ -6,32 +6,28 @@
 #
 # This program is largely based on applet.py from the Hamster project.
 #
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-# This program is free software: you can redistribute it and/or modify it 
-# under the terms of either or both of the following licenses:
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-# 1) the GNU Lesser General Public License version 3, as published by the 
-# Free Software Foundation; and/or
-# 2) the GNU Lesser General Public License version 2.1, as published by 
-# the Free Software Foundation.
-#
-# This program is distributed in the hope that it will be useful, but 
-# WITHOUT ANY WARRANTY; without even the implied warranties of 
-# MERCHANTABILITY, SATISFACTORY QUALITY or FITNESS FOR A PARTICULAR 
-# PURPOSE.  See the applicable version of the GNU Lesser General Public 
-# License for more details.
-#
-# You should have received a copy of both the GNU Lesser General Public 
-# License version 3 and version 2.1 along with this program.  If not, see 
-# <http://www.gnu.org/licenses/>
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
 import gobject
 import gtk
 import appindicator
+import gconf
 
 import logging
 import datetime as dt
+import os.path
 
 import pygtk
 pygtk.require("2.0")
@@ -44,10 +40,10 @@ import getopt,sys
 from hamster.configuration import conf, runtime, dialogs
 
 try:
-    from hamster import stuff
+    from hamster import stuff, client
     from hamster import i18n
 except ImportError:
-    from hamster.lib import stuff
+    from hamster.lib import stuff, client
     from hamster.lib import i18n
 
 # controllers for other windows
@@ -89,25 +85,46 @@ class FakeApplet(object):
 
 
 class HamsterIndicator(HamsterApplet):
-
+    BASE_KEY = "/apps/hamster-indicator"
     def __init__(self, applet=None):
+        # Gconf settings
+        self._settings = gconf.client_get_default()
+        self._settings.add_dir(self.BASE_KEY, gconf.CLIENT_PRELOAD_NONE)
+        # Key to enable/disable icon glow
+        self._icon_glow_path = os.path.join(self.BASE_KEY, "icon_glow")
+        self._use_icon_glow = self._settings.get_bool(self._icon_glow_path)
+        self._settings.notify_add(self._icon_glow_path, self._on_icon_glow_changed)
+
+        # Key to show/hide the indicator label
+        self._show_label_path = os.path.join(self.BASE_KEY, "show_label")
+        self._show_label = self._settings.get_bool(self._show_label_path)
+        self._settings.notify_add(self._show_label_path, self._on_show_label_changed)
+
+        # Key to set the length of indicator label
+        self._label_length_path = os.path.join(self.BASE_KEY, "label_length")
+        self._label_length = self._settings.get_int(self._label_length_path)
+        self._settings.notify_add(self._label_length_path, self._on_label_length_changed)
+
         self._activity_as_attribute = None
         # Create a fake applet since HamsterApplet requires one
         applet = FakeApplet()
         self.storage = client.Storage()
-        
-        self.indicator = appindicator.Indicator ("hamster-applet",
-                                  "hamster-applet",#"file-manager",
-                                  appindicator.CATEGORY_SYSTEM_SERVICES)
-    #                              appindicator.CATEGORY_APPLICATION_STATUS)
-        self.indicator.set_status (appindicator.STATUS_ACTIVE)
-    #    ind.set_attention_icon ("indicator-messages-new")
-    #    self.indicator.set_label('test','test');
-        self.activity, self.duration = None, None
-        
-        self.menu = gtk.Menu()
 
-        self.activity_item = gtk.MenuItem("Fixing hamster  00:24")
+        self.indicator = appindicator.Indicator ("hamster-applet",
+                                  "hamster-applet-inactive",
+                                  appindicator.CATEGORY_SYSTEM_SERVICES)
+
+        self.indicator.set_status (appindicator.STATUS_ACTIVE)
+        # Set the attention icon as per the icon_glow gconf key
+        self._set_attention_icon()
+
+        # Initialise the activity label with "No Activity"
+        self.indicator.set_label(self._get_no_activity_label())
+
+        self.activity, self.duration = None, None
+
+        self.menu = gtk.Menu()
+        self.activity_item = gtk.MenuItem("")
         self.menu.append(self.activity_item)
         # this is where you would connect your menu item up with a function:
         self.activity_item.connect("activate", self.on_new_activity_activated, None)
@@ -237,7 +254,6 @@ class HamsterIndicator(HamsterApplet):
             self.indicator.set_label(label,'00:00')
  
         label = '<span gravity="south">%s</span>' % label
-        
         if self.activity_label:
             self.activity_label.set_markup("") #clear - seems to fix the warning
             self.activity_label.set_markup(label)
@@ -271,19 +287,83 @@ class HamsterIndicator(HamsterApplet):
 
         if self.last_activity and end_time is None:
             self.stop_activity_item.set_sensitive(1)
+            self._set_activity_status(1)
             delta = dt.datetime.now() - start_time
             duration = delta.seconds /  60
             label = "%s %s" % (last_activity_name,
                                stuff.format_duration(duration, False))
             self.set_activity_text(last_activity_name,
                                  stuff.format_duration(duration, False))
+            indicator_label = "%s %s" % (self._clamp_text(self.activity,
+                                         length=self._label_length,
+                                         with_ellipsis=False),
+                                         self.duration)
         else:
-            self.stop_activity_item.set_sensitive(0)
-            label = "%s" % _(u"New activity")#_(u"No activity")
+            self._set_activity_status(0)
+            label = "%s" % _(u"New activity")
             self.set_activity_text(label, None)
+            indicator_label = self._get_no_activity_label()
+
+        # Update the indicator label, if needed
+        if self._show_label:
+            self.indicator.set_label(indicator_label)
+        else:
+            self.indicator.set_label("")
 
         # Update the menu or the new activity text won't show up
         self.refresh_menu()
+
+    def _clamp_text(self, text, length=25, with_ellipsis=True, is_indicator=False):
+        text = stuff.escape_pango(text)
+        if len(text) > length:  #ellipsize at some random length
+            if with_ellipsis:
+                if is_indicator:
+                    text = "%s%s" % (text[:length], "...")
+                else:
+                    text = "%s%s" % (text[:length], "&#8230;")
+            else:
+                text = "%s" % (text[:length])
+        return text
+
+    def _set_activity_status(self, is_active):
+        if is_active:
+            # There's an active task
+            self.indicator.set_status (appindicator.STATUS_ATTENTION)
+        else:
+            # There's no active task
+            self.indicator.set_status (appindicator.STATUS_ACTIVE)
+        self.stop_activity_item.set_sensitive(is_active)
+
+    def _set_attention_icon(self):
+        '''Set the attention icon as per the gconf key'''
+        if self._use_icon_glow:
+            self.indicator.set_attention_icon('hamster-applet-active')
+        else:
+            self.indicator.set_attention_icon('hamster-applet-inactive')
+
+    def _on_icon_glow_changed(self, client, connection_id, entry, *args):
+        self._use_icon_glow = self._settings.get_bool(self.BASE_KEY + "/icon_glow")
+        self._set_attention_icon()
+
+    def _on_show_label_changed(self, client, connection_id, entry, *args):
+        '''Hide or show the indicator's label'''
+        self._show_label = self._settings.get_bool(self._show_label_path)
+        if self._show_label:
+            self.update_label()
+        else:
+            self.indicator.set_label("")
+
+    def _on_label_length_changed(self, client, connection_id, entry, *args):
+        '''Resize the indicator's label'''
+        self._label_length = self._settings.get_int(self._label_length_path)
+        if self._show_label:
+            self.update_label()
+
+    def _get_no_activity_label(self):
+        '''Get the indicator label set to "No activity"'''
+        return self._clamp_text(_(u"No activity"),
+                                length=self._label_length,
+                                with_ellipsis=False)
 
     def position_popup(self):
         '''Override the superclass method and do nothing'''
@@ -295,17 +375,17 @@ class HamsterIndicator(HamsterApplet):
 
     def set_last_activity(self):
         '''Override to change the Stop button sensitivity'''
-        #self.stop_activity_item.set_sensitive(self.last_activity != None)
+        #self._set_activity_status(self.last_activity != None)
         super(HamsterIndicator, self).set_last_activity()
 
     def on_stop_tracking_clicked(self, widget):
         '''Override to make the Stop button insensitive'''
-        self.stop_activity_item.set_sensitive(0)
+        self._set_activity_status(0)
         super(HamsterIndicator, self).on_stop_tracking_clicked(widget)
 
     def on_switch_activity_clicked(self, widget):
         '''Override to make the Stop button sensitive'''
-        self.stop_activity_item.set_sensitive(1)
+        self._set_activity_status(1)
         super(HamsterIndicator, self).on_switch_activity_clicked(widget)
 
     def update_prev(self):
